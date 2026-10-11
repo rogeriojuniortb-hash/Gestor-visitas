@@ -12,7 +12,6 @@
       --text: #f8fafc;
       --muted: #94a3b8;
       --border: #334155;
-      --success: #10b981;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; }
@@ -27,7 +26,7 @@
     input:focus, textarea:focus { border-color: var(--primary); }
     button {
       width: 100%; background: var(--primary); color: white; border: none;
-      border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+      border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer;
     }
     button:active { opacity: 0.8; }
     .btn-secondary { background: #334155; margin-top: 8px; }
@@ -45,29 +44,25 @@
     <span onclick="toggleConfig()" style="cursor:pointer; font-size: 1.3rem;">⚙️</span>
   </header>
 
-  <!-- Seção de Configuração de Chave -->
   <div id="config-card" class="card hidden">
     <label for="apiKey">Chave de API do Google Gemini</label>
     <input type="password" id="apiKey" placeholder="Cole sua chave AI Studio aqui">
     <button onclick="salvarConfig()">Salvar Chave</button>
   </div>
 
-  <!-- Entrada Rápida com IA -->
   <div class="card">
     <span class="badge">Assistente Gemini</span>
     <label for="promptInput">Descreva a visita ou cole o pedido do cliente:</label>
-    <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanha as 14h com o Carlos na Rua Goias 123 para troca de switch e cabos"></textarea>
+    <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanhã em Ubatuba teste na praia 7 horas"></textarea>
     <button id="btnProcessar" onclick="processarComGemini()">Organizar & Agendar</button>
   </div>
 
-  <!-- Lista de Visitas Agendadas -->
   <div class="card">
     <h2 style="font-size: 1rem; margin-bottom: 12px;">Próximos Atendimentos</h2>
     <div id="listaVisitas"></div>
   </div>
 
   <script>
-    // Recupera configurações e dados do localStorage
     let apiKey = localStorage.getItem('gemini_api_key') || '';
     let visitas = JSON.parse(localStorage.getItem('minhas_visitas') || '[]');
 
@@ -97,8 +92,8 @@
       }
       container.innerHTML = visitas.map((v, i) => `
         <div class="agenda-item">
-          <div class="agenda-title">${v.cliente} — ${v.servico}</div>
-          <div class="agenda-desc">📅 ${v.data_hora}\n📍 ${v.endereco}\n🧰 ${v.materiais || 'Nenhum item listado'}</div>
+          <div class="agenda-title">${v.cliente || 'Cliente'} — ${v.servico || 'Serviço'}</div>
+          <div class="agenda-desc">📅 ${v.data_hora || 'Não informada'}\n📍 ${v.endereco || 'Não informado'}\n🧰 ${v.materiais || 'Nenhum item listado'}</div>
           <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; width: auto; margin-top: 8px;" onclick="removerVisita(${i})">Excluir</button>
         </div>
       `).join('');
@@ -123,23 +118,23 @@
       btn.innerText = 'Processando com Gemini...';
       btn.disabled = true;
 
-      const systemPrompt = `Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown e sem texto adicional:
+      const systemPrompt = `Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown:
 {
-  "cliente": "Nome do cliente",
+  "cliente": "Nome do cliente ou Não identificado",
   "servico": "Descrição resumida do serviço",
   "data_hora": "Data e horário formatados",
   "endereco": "Endereço completo informado ou Não informado",
-  "materiais": "Materiais e ferramentas necessários deduzidos ou citados"
+  "materiais": "Materiais e ferramentas necessários"
 }`;
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [
-              { role: "user", parts: [{ text: systemPrompt + "\n\nTexto do usuário: " + input }] }
+              { role: "user", parts: [{ text: systemPrompt + "\\n\\nTexto: " + input }] }
             ]
           })
         });
@@ -147,11 +142,11 @@
         const data = await response.json();
 
         if (data.error) {
-          throw new Error(data.error.message || JSON.stringify(data.error));
+          throw new Error('Google API: ' + (data.error.message || JSON.stringify(data.error)));
         }
 
-        if (!data.candidates || data.candidates.length === 0) {
-          throw new Error('Nenhuma resposta gerada pela IA.');
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+          throw new Error('Resposta vazia da API: ' + JSON.stringify(data));
         }
 
         const textoResposta = data.candidates[0].content.parts[0].text;
@@ -168,4 +163,10 @@
         btn.innerText = 'Organizar & Agendar';
         btn.disabled = false;
       }
+    }
+
+    renderizarVisitas();
+  </script>
+</body>
+</html>
     }
