@@ -129,7 +129,7 @@
       const systemPrompt = "Você é um assistente técnico. Extraia as informações e responda em JSON puro sem crases markdown: {\"cliente\": \"...\", \"servico\": \"...\", \"data_hora\": \"...\", \"endereco\": \"...\", \"materiais\": \"...\"}";
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${chaveAtual}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${chaveAtual}`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos limite
