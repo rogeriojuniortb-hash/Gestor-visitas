@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gestor de Visitas & Serviços</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --primary: #3b82f6;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { font-size: 1.25rem; font-weight: 700; color: #fff; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+    input, textarea {
+      width: 100%; background: #0b1120; border: 1px solid var(--border);
+      border-radius: 8px; color: #fff; padding: 12px; font-size: 0.95rem; margin-bottom: 12px; outline: none;
+    }
+    input:focus, textarea:focus { border-color: var(--primary); }
+    button {
+      width: 100%; background: var(--primary); color: white; border: none;
+      border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    button:active { opacity: 0.8; }
+    .btn-secondary { background: #334155; margin-top: 8px; }
+    .badge { display: inline-block; padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background: #3b82f620; color: #60a5fa; margin-bottom: 8px; }
+    .agenda-item { background: #0b1120; border-left: 4px solid var(--primary); padding: 12px; border-radius: 6px; margin-bottom: 10px; }
+    .agenda-title { font-weight: 600; margin-bottom: 4px; }
+    .agenda-desc { font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📋 Gestor de Visitas</h1>
+    <span onclick="toggleConfig()" style="cursor:pointer; font-size: 1.3rem;">⚙️</span>
+  </header>
+
+  <!-- Seção de Configuração de Chave -->
+  <div id="config-card" class="card hidden">
+    <label for="apiKey">Chave de API do Google Gemini</label>
+    <input type="password" id="apiKey" placeholder="Cole sua chave AI Studio aqui">
+    <button onclick="salvarConfig()">Salvar Chave</button>
+  </div>
+
+  <!-- Entrada Rápida com IA -->
+  <div class="card">
+    <span class="badge">Assistente Gemini</span>
+    <label for="promptInput">Descreva a visita ou cole o pedido do cliente:</label>
+    <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanha as 14h com o Carlos na Rua Goias 123 para troca de switch e cabos"></textarea>
+    <button id="btnProcessar" onclick="processarComGemini()">Organizar & Agendar</button>
+  </div>
+
+  <!-- Lista de Visitas Agendadas -->
+  <div class="card">
+    <h2 style="font-size: 1rem; margin-bottom: 12px;">Próximos Atendimentos</h2>
+    <div id="listaVisitas"></div>
+  </div>
+
+  <script>
+    // Recupera configurações e dados do localStorage
+    let apiKey = localStorage.getItem('gemini_api_key') || '';
+    let visitas = JSON.parse(localStorage.getItem('minhas_visitas') || '[]');
+
+    if (!apiKey) {
+      document.getElementById('config-card').classList.remove('hidden');
+    }
+
+    function toggleConfig() {
+      document.getElementById('config-card').classList.toggle('hidden');
+    }
+
+    function salvarConfig() {
+      const chave = document.getElementById('apiKey').value.trim();
+      if (chave) {
+        localStorage.setItem('gemini_api_key', chave);
+        apiKey = chave;
+        document.getElementById('config-card').classList.add('hidden');
+        alert('Chave salva com sucesso!');
+      }
+    }
+
+    function renderizarVisitas() {
+      const container = document.getElementById('listaVisitas');
+      if (visitas.length === 0) {
+        container.innerHTML = '<p style="color: var(--muted); font-size: 0.85rem;">Nenhuma visita agendada ainda.</p>';
+        return;
+      }
+      container.innerHTML = visitas.map((v, i) => `
+        <div class="agenda-item">
+          <div class="agenda-title">${v.cliente} — ${v.servico}</div>
+          <div class="agenda-desc">📅 ${v.data_hora}\n📍 ${v.endereco}\n🧰 ${v.materiais || 'Nenhum item listado'}</div>
+          <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; width: auto; margin-top: 8px;" onclick="removerVisita(${i})">Excluir</button>
+        </div>
+      `).join('');
+    }
+
+    function removerVisita(index) {
+      visitas.splice(index, 1);
+      localStorage.setItem('minhas_visitas', JSON.stringify(visitas));
+      renderizarVisitas();
+    }
+
+    async function processarComGemini() {
+      if (!apiKey) {
+        alert('Configure sua Chave de API clicando na engrenagem ⚙️');
+        return;
+      }
+
+      const input = document.getElementById('promptInput').value.trim();
+      if (!input) return;
+
+      const btn = document.getElementById('btnProcessar');
+      btn.innerText = 'Processando com Gemini...';
+      btn.disabled = true;
+
+      const systemPrompt = `Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown e sem texto adicional:
+{
+  "cliente": "Nome do cliente",
+  "servico": "Descrição resumida do serviço",
+  "data_hora": "Data e horário formatados",
+  "endereco": "Endereço completo informado ou Não informado",
+  "materiais": "Materiais e ferramentas necessários deduzidos ou citados"
+}`;
+
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: systemPrompt + "\n\nTexto do usuário: " + input }] }
+            ]
+          })
+        });
+
+        const data = await response.json();
+        const textoResposta = data.candidates[0].content.parts[0].text;
+        const limpo = textoResposta.replace(/```json|```/g, '').trim();
+        const dados = JSON.parse(limpo);
+
+        visitas.unshift(dados);
+        localStorage.setItem('minhas_visitas', JSON.stringify(visitas));
+        renderizarVisitas();
+        document.getElementById('promptInput').value = '';
+      } catch (err) {
+        alert('Erro ao processar: ' + err.message);
+      } finally {
+        btn.innerText = 'Organizar & Agendar';
+        btn.disabled = false;
+      }
+    }
+
+    renderizarVisitas();
+  </script>
+</body>
+</html>
