@@ -29,6 +29,7 @@
       border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer;
     }
     button:active { opacity: 0.8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-secondary { background: #334155; margin-top: 8px; }
     .badge { display: inline-block; padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background: #3b82f620; color: #60a5fa; margin-bottom: 8px; }
     .agenda-item { background: #0b1120; border-left: 4px solid var(--primary); padding: 12px; border-radius: 6px; margin-bottom: 10px; }
@@ -51,7 +52,7 @@
   </div>
 
   <div class="card">
-    <span class="badge">Assistente Gemini</span>
+    <span class="badge">Assistente Gemini (v3)</span>
     <label for="promptInput">Descreva a visita ou cole o pedido do cliente:</label>
     <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanhã em Ubatuba teste na praia 7 horas"></textarea>
     <button id="btnProcessar" onclick="processarComGemini()">Organizar & Agendar</button>
@@ -75,12 +76,14 @@
     }
 
     function salvarConfig() {
-      const chave = document.getElementById('apiKey').value.trim();
-      if (chave) {
-        localStorage.setItem('gemini_api_key', chave);
-        apiKey = chave;
+      const inputChave = document.getElementById('apiKey').value.trim();
+      if (inputChave) {
+        localStorage.setItem('gemini_api_key', inputChave);
+        apiKey = inputChave;
         document.getElementById('config-card').classList.add('hidden');
         alert('Chave salva com sucesso!');
+      } else {
+        alert('Por favor, cole uma chave válida.');
       }
     }
 
@@ -106,59 +109,69 @@
     }
 
     async function processarComGemini() {
-      if (!apiKey) {
-        alert('Configure a sua Chave de API clicando na engrenagem ⚙️');
+      const chaveAtual = apiKey || localStorage.getItem('gemini_api_key');
+      if (!chaveAtual) {
+        alert('Configure sua Chave de API clicando na engrenagem ⚙️');
+        document.getElementById('config-card').classList.remove('hidden');
         return;
       }
 
       const input = document.getElementById('promptInput').value.trim();
-      if (!input) return;
+      if (!input) {
+        alert('Digite ou cole os dados da visita antes de agendar.');
+        return;
+      }
 
       const btn = document.getElementById('btnProcessar');
       btn.innerText = 'Processando com Gemini...';
       btn.disabled = true;
 
-      const promptSistema = "Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown:\n" +
-        "{\n" +
-        '  "cliente": "Nome do cliente ou Não identificado",\n' +
-        '  "servico": "Descrição resumida do serviço",\n' +
-        '  "data_hora": "Data e horário formatados",\n' +
-        '  "endereco": "Endereço completo informado ou Não informado",\n' +
-        '  "materiais": "Materiais e ferramentas necessários"\n' +
-        "}";
+      const systemPrompt = "Você é um assistente técnico. Extraia as informações e responda em JSON puro sem crases markdown: {\"cliente\": \"...\", \"servico\": \"...\", \"data_hora\": \"...\", \"endereco\": \"...\", \"materiais\": \"...\"}";
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${chaveAtual}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos limite
+
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [
-              { role: "user", parts: [{ text: promptSistema + "\n\nTexto: " + input }] }
+              { role: "user", parts: [{ text: systemPrompt + "\n\nTexto: " + input }] }
             ]
-          })
+          }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         const data = await response.json();
 
         if (data.error) {
-          throw new Error(data.error.message || JSON.stringify(data.error));
+          throw new Error('API Google: ' + (data.error.message || JSON.stringify(data.error)));
         }
 
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-          throw new Error('Resposta vazia da API.');
+          throw new Error('Resposta vazia da API: ' + JSON.stringify(data));
         }
 
-        const texto = data.candidates[0].content.parts[0].text;
-        const limpo = texto.replace(/```json|```/g, '').trim();
+        const textoResposta = data.candidates[0].content.parts[0].text;
+        const limpo = textoResposta.replace(/```json|```/g, '').trim();
         const dados = JSON.parse(limpo);
 
         visitas.unshift(dados);
         localStorage.setItem('minhas_visitas', JSON.stringify(visitas));
         renderizarVisitas();
         document.getElementById('promptInput').value = '';
+        alert('Visita agendada com sucesso!');
       } catch (err) {
-        alert('Erro: ' + err.message);
+        if (err.name === 'AbortError') {
+          alert('Tempo limite esgotado: A requisição demorou mais de 15 segundos. Verifique sua conexão.');
+        } else {
+          alert('Erro: ' + err.message);
+        }
       } finally {
         btn.innerText = 'Organizar & Agendar';
         btn.disabled = false;
