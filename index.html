@@ -132,7 +132,7 @@
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${chaveAtual}`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos limite
+        const timeoutId = setTimeout(() => controller.abort(), 35000); // 35 segundos limite
 
         const response = await fetch(url, {
           method: 'POST',
