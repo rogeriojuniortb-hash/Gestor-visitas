@@ -133,7 +133,7 @@
 }`;
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -145,6 +145,15 @@
         });
 
         const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error.message || JSON.stringify(data.error));
+        }
+
+        if (!data.candidates || data.candidates.length === 0) {
+          throw new Error('Nenhuma resposta gerada pela IA.');
+        }
+
         const textoResposta = data.candidates[0].content.parts[0].text;
         const limpo = textoResposta.replace(/```json|```/g, '').trim();
         const dados = JSON.parse(limpo);
@@ -154,14 +163,9 @@
         renderizarVisitas();
         document.getElementById('promptInput').value = '';
       } catch (err) {
-        alert('Erro ao processar: ' + err.message);
+        alert('Erro detalhado: ' + err.message);
       } finally {
         btn.innerText = 'Organizar & Agendar';
         btn.disabled = false;
       }
     }
-
-    renderizarVisitas();
-  </script>
-</body>
-</html>
