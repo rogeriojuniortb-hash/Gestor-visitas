@@ -107,7 +107,7 @@
 
     async function processarComGemini() {
       if (!apiKey) {
-        alert('Configure sua Chave de API clicando na engrenagem ⚙️');
+        alert('Configure a sua Chave de API clicando na engrenagem ⚙️');
         return;
       }
 
@@ -118,23 +118,23 @@
       btn.innerText = 'Processando com Gemini...';
       btn.disabled = true;
 
-      const systemPrompt = `Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown:
-{
-  "cliente": "Nome do cliente ou Não identificado",
-  "servico": "Descrição resumida do serviço",
-  "data_hora": "Data e horário formatados",
-  "endereco": "Endereço completo informado ou Não informado",
-  "materiais": "Materiais e ferramentas necessários"
-}`;
+      const promptSistema = "Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON puro, sem crases de markdown:\n" +
+        "{\n" +
+        '  "cliente": "Nome do cliente ou Não identificado",\n' +
+        '  "servico": "Descrição resumida do serviço",\n' +
+        '  "data_hora": "Data e horário formatados",\n' +
+        '  "endereco": "Endereço completo informado ou Não informado",\n' +
+        '  "materiais": "Materiais e ferramentas necessários"\n' +
+        "}";
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [
-              { role: "user", parts: [{ text: systemPrompt + "\\n\\nTexto: " + input }] }
+              { role: "user", parts: [{ text: promptSistema + "\n\nTexto: " + input }] }
             ]
           })
         });
@@ -142,15 +142,15 @@
         const data = await response.json();
 
         if (data.error) {
-          throw new Error('Google API: ' + (data.error.message || JSON.stringify(data.error)));
+          throw new Error(data.error.message || JSON.stringify(data.error));
         }
 
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-          throw new Error('Resposta vazia da API: ' + JSON.stringify(data));
+          throw new Error('Resposta vazia da API.');
         }
 
-        const textoResposta = data.candidates[0].content.parts[0].text;
-        const limpo = textoResposta.replace(/```json|```/g, '').trim();
+        const texto = data.candidates[0].content.parts[0].text;
+        const limpo = texto.replace(/```json|```/g, '').trim();
         const dados = JSON.parse(limpo);
 
         visitas.unshift(dados);
@@ -158,7 +158,7 @@
         renderizarVisitas();
         document.getElementById('promptInput').value = '';
       } catch (err) {
-        alert('Erro detalhado: ' + err.message);
+        alert('Erro: ' + err.message);
       } finally {
         btn.innerText = 'Organizar & Agendar';
         btn.disabled = false;
@@ -169,4 +169,3 @@
   </script>
 </body>
 </html>
-    }
