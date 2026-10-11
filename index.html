@@ -120,22 +120,39 @@
     }
 
     async function processarComGemini() {
-      const chaveAtual = apiKey || localStorage.getItem('gemini_api_key');
-      if (!chaveAtual) {
-        alert('Configure sua Chave de API clicando na engrenagem ⚙️');
-        document.getElementById('config-card').classList.remove('hidden');
-        return;
-      }
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${chaveAtual}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: promptSistema + "\n\nTexto do agendamento: " + input }] }]
+          })
+        });
 
-      const input = document.getElementById('promptInput').value.trim();
-      if (!input) {
-        alert('Escreva os detalhes da visita antes de agendar.');
-        return;
-      }
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(data.error.message);
+        }
 
-      const btn = document.getElementById('btnProcessar');
-      btn.innerText = 'Organizando com IA... Aguarde';
-      btn.disabled = true;
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+          const rawText = data.candidates[0].content.parts[0].text;
+          const limpo = rawText.replace(/```json|```/g, '').trim();
+          const resultado = JSON.parse(limpo);
+
+          visitas.unshift(resultado);
+          localStorage.setItem('minhas_visitas', JSON.stringify(visitas));
+          renderizarVisitas();
+          document.getElementById('promptInput').value = '';
+        } else {
+          throw new Error('Nenhuma resposta recebida do modelo.');
+        }
+      } catch (e) {
+        alert('Erro ao agendar: ' + e.message);
+      } finally {
+        btn.innerText = 'Organizar & Agendar';
+        btn.disabled = false;
+      }
 
       const promptSistema = "Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE um objeto JSON válido, sem qualquer formatação markdown ou crases:\n" +
         "{\n" +
