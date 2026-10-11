@@ -8,10 +8,11 @@
     :root {
       --bg: #0f172a;
       --card: #1e293b;
-      --primary: #3b82f6;
+      --primary: #2563eb;
       --text: #f8fafc;
       --muted: #94a3b8;
       --border: #334155;
+      --success: #16a34a;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; }
@@ -29,12 +30,14 @@
       border-radius: 8px; padding: 12px; font-size: 1rem; font-weight: 600; cursor: pointer;
     }
     button:active { opacity: 0.8; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary { background: #334155; margin-top: 8px; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .btn-del { background: #dc2626; padding: 6px 12px; font-size: 0.8rem; width: auto; border-radius: 6px; }
+    .btn-agenda { background: var(--success); padding: 6px 12px; font-size: 0.8rem; width: auto; border-radius: 6px; text-decoration: none; color: white; display: inline-block; }
     .badge { display: inline-block; padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; background: #3b82f620; color: #60a5fa; margin-bottom: 8px; }
-    .agenda-item { background: #0b1120; border-left: 4px solid var(--primary); padding: 12px; border-radius: 6px; margin-bottom: 10px; }
-    .agenda-title { font-weight: 600; margin-bottom: 4px; }
-    .agenda-desc { font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; }
+    .agenda-item { background: #0b1120; border-left: 4px solid var(--primary); padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+    .agenda-title { font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
+    .agenda-desc { font-size: 0.85rem; color: #cbd5e1; white-space: pre-wrap; line-height: 1.4; margin-bottom: 10px; }
+    .item-actions { display: flex; gap: 8px; align-items: center; }
     .hidden { display: none; }
   </style>
 </head>
@@ -42,7 +45,7 @@
 
   <header>
     <h1>📋 Gestor de Visitas</h1>
-    <span onclick="toggleConfig()" style="cursor:pointer; font-size: 1.3rem;">⚙️</span>
+    <span onclick="toggleConfig()" style="cursor:pointer; font-size: 1.4rem;">⚙️</span>
   </header>
 
   <div id="config-card" class="card hidden">
@@ -52,9 +55,9 @@
   </div>
 
   <div class="card">
-    <span class="badge">Assistente Gemini (v3)</span>
-    <label for="promptInput">Descreva a visita ou cole o pedido do cliente:</label>
-    <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanhã em Ubatuba teste na praia 7 horas"></textarea>
+    <span class="badge">Assistente IA Ativo</span>
+    <label for="promptInput">Descreva a visita ou cole o texto do cliente:</label>
+    <textarea id="promptInput" rows="3" placeholder="Ex: Visita amanhã às 14h com o Fernando para orçamento de câmeras na Rua Goiás 120"></textarea>
     <button id="btnProcessar" onclick="processarComGemini()">Organizar & Agendar</button>
   </div>
 
@@ -83,7 +86,7 @@
         document.getElementById('config-card').classList.add('hidden');
         alert('Chave salva com sucesso!');
       } else {
-        alert('Por favor, cole uma chave válida.');
+        alert('Cole uma chave de API válida.');
       }
     }
 
@@ -93,13 +96,21 @@
         container.innerHTML = '<p style="color: var(--muted); font-size: 0.85rem;">Nenhuma visita agendada ainda.</p>';
         return;
       }
-      container.innerHTML = visitas.map((v, i) => `
-        <div class="agenda-item">
-          <div class="agenda-title">${v.cliente || 'Cliente'} — ${v.servico || 'Serviço'}</div>
-          <div class="agenda-desc">📅 ${v.data_hora || 'Não informada'}\n📍 ${v.endereco || 'Não informado'}\n🧰 ${v.materiais || 'Nenhum item listado'}</div>
-          <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; width: auto; margin-top: 8px;" onclick="removerVisita(${i})">Excluir</button>
-        </div>
-      `).join('');
+      container.innerHTML = visitas.map((v, i) => {
+        const textoGoogleAgenda = encodeURIComponent(`Visita: ${v.cliente} - ${v.servico}\nLocal: ${v.endereco}\nMateriais: ${v.materiais || 'Nenhum'}`);
+        const linkAgenda = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(v.servico + ' - ' + v.cliente)}&details=${textoGoogleAgenda}&location=${encodeURIComponent(v.endereco || '')}`;
+
+        return `
+          <div class="agenda-item">
+            <div class="agenda-title">${v.cliente || 'Cliente'} — ${v.servico || 'Serviço'}</div>
+            <div class="agenda-desc">📅 <b>Data/Hora:</b> ${v.data_hora || 'A combinar'}\n📍 <b>Local:</b> ${v.endereco || 'Não informado'}\n🧰 <b>Materiais:</b> ${v.materiais || 'Padrão'}</div>
+            <div class="item-actions">
+              <a href="${linkAgenda}" target="_blank" class="btn-agenda">📅 Adicionar à Agenda</a>
+              <button class="btn-del" onclick="removerVisita(${i})">Excluir</button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function removerVisita(index) {
@@ -118,64 +129,67 @@
 
       const input = document.getElementById('promptInput').value.trim();
       if (!input) {
-        alert('Digite ou cole os dados da visita antes de agendar.');
+        alert('Escreva os detalhes da visita antes de agendar.');
         return;
       }
 
       const btn = document.getElementById('btnProcessar');
-      btn.innerText = 'Processando com Gemini...';
+      btn.innerText = 'Organizando com IA... Aguarde';
       btn.disabled = true;
 
-      const systemPrompt = "Você é um assistente técnico. Extraia as informações e responda em JSON puro sem crases markdown: {\"cliente\": \"...\", \"servico\": \"...\", \"data_hora\": \"...\", \"endereco\": \"...\", \"materiais\": \"...\"}";
+      const promptSistema = "Você é um assistente de gestão técnica. Extraia as informações do texto e responda EXCLUSIVAMENTE um objeto JSON válido, sem qualquer formatação markdown ou crases:\n" +
+        "{\n" +
+        '  "cliente": "Nome do cliente ou Empresa",\n' +
+        '  "servico": "Resumo do serviço a realizar",\n' +
+        '  "data_hora": "Data e horário informados",\n' +
+        '  "endereco": "Endereço ou Local informado",\n' +
+        '  "materiais": "Materiais, ferramentas ou equipamentos necessários deduzidos ou citados"\n' +
+        "}";
 
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${chaveAtual}`;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 35000); // 35 segundos limite
+      // Lista de modelos suportados para redundância automática
+      const modelos = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+      let resultado = null;
+      let erroFinal = '';
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              { role: "user", parts: [{ text: systemPrompt + "\n\nTexto: " + input }] }
-            ]
-          }),
-          signal: controller.signal
-        });
+      for (const modelo of modelos) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${chaveAtual}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: promptSistema + "\n\nTexto do agendamento: " + input }] }]
+            })
+          });
 
-        clearTimeout(timeoutId);
+          const data = await res.json();
+          if (data.error) {
+            erroFinal = data.error.message;
+            continue;
+          }
 
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error('API Google: ' + (data.error.message || JSON.stringify(data.error)));
+          if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            const rawText = data.candidates[0].content.parts[0].text;
+            const limpo = rawText.replace(/```json|```/g, '').trim();
+            resultado = JSON.parse(limpo);
+            break;
+          }
+        } catch (e) {
+          erroFinal = e.message;
         }
+      }
 
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-          throw new Error('Resposta vazia da API: ' + JSON.stringify(data));
-        }
-
-        const textoResposta = data.candidates[0].content.parts[0].text;
-        const limpo = textoResposta.replace(/```json|```/g, '').trim();
-        const dados = JSON.parse(limpo);
-
-        visitas.unshift(dados);
+      if (resultado) {
+        visitas.unshift(resultado);
         localStorage.setItem('minhas_visitas', JSON.stringify(visitas));
         renderizarVisitas();
         document.getElementById('promptInput').value = '';
-        alert('Visita agendada com sucesso!');
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          alert('Tempo limite esgotado: A requisição demorou mais de 15 segundos. Verifique sua conexão.');
-        } else {
-          alert('Erro: ' + err.message);
-        }
-      } finally {
-        btn.innerText = 'Organizar & Agendar';
-        btn.disabled = false;
+      } else {
+        alert('Não foi possível processar agora. Motivo: ' + erroFinal);
       }
+
+      btn.innerText = 'Organizar & Agendar';
+      btn.disabled = false;
     }
 
     renderizarVisitas();
